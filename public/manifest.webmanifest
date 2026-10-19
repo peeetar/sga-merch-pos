@@ -1,0 +1,10 @@
+{
+  "name": "SGA Merch POS",
+  "short_name": "SGA Merch",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#6A1010",
+  "theme_color": "#8B1A1A",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}
