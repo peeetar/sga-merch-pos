@@ -57,7 +57,8 @@ export function valid(store: StoreName, r: Record<string, unknown>): boolean {
       return str(r.name, 60) && nonNeg(r.price_cents) && Array.isArray(r.colors) && r.colors.length <= 30
         && (r.colors as Record<string, unknown>[]).every((c) => str(c.id) && str(c.name, 40) && /^#[0-9a-fA-F]{6}$/.test(String(c.hex)))
         && Array.isArray(r.sizes) && r.sizes.length > 0 && r.sizes.length <= 20 && r.sizes.every((s) => str(s, 20))
-        && typeof r.sort === "number" && Number.isFinite(r.sort) && typeof r.archived === "boolean" && str(r.updated_at);
+        && typeof r.sort === "number" && Number.isFinite(r.sort) && typeof r.archived === "boolean" && str(r.updated_at)
+        && (r.category === undefined || optStr(r.category, 40)) && (r.low_at === undefined || (nonNeg(r.low_at) && (r.low_at as number) <= 999));
     case "moves":
       return str(r.product_id) && str(r.color_id) && str(r.size, 20) && int(r.delta)
         && ["delivery", "count", "damaged", "giveaway", "other"].includes(String(r.reason))

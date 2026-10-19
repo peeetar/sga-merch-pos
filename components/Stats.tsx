@@ -4,7 +4,7 @@
 // cover the whole stall, not just this device.
 import { useMemo, useState } from "react";
 import { activeProducts, salesCsv, stats, type Agg } from "@/lib/calc";
-import { euros, variantKey, type Bundle, type Shift } from "@/lib/types";
+import { euros, lineName, lowMark, variantKey, type Bundle, type Shift } from "@/lib/types";
 
 type Range = "shift" | "today" | "week" | "all";
 type Levels = { on: Map<string, number>; tracked: Set<string> };
@@ -57,7 +57,7 @@ export default function Stats({ data, shift, lastShift, levels }: {
       const k = variantKey(p.id, c.id, z);
       if (!levels.tracked.has(k)) continue;
       const n = levels.on.get(k) || 0;
-      if (n <= 3) out.push({ label: `${p.name} · ${c.name} · ${z}`, hex: c.hex, n });
+      if (n <= lowMark(p)) out.push({ label: lineName({ product_name: p.name, color_id: c.id, color_name: c.name, size: z }), hex: c.hex, n });
     }
     return out.sort((a, b) => a.n - b.n);
   }, [data.products, levels]);

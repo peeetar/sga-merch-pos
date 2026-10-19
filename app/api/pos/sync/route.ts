@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { ensureSchema, resetSchema, sql } from "@/lib/db";
 import { merge, valid } from "@/lib/merge";
 import { authed } from "@/lib/session";
+import { checkStockAlerts } from "@/lib/stock-alerts";
 import { STORES, type StoreName } from "@/lib/types";
 
 type Row = Record<string, unknown> & { id: string };
@@ -73,6 +74,11 @@ export async function POST(req: NextRequest) {
       }
     }
     await q.transaction(writes);
+    // Sales and stock moves change what's on hand; tell the board on ntfy
+    // once the tablet has its answer.
+    if (incoming.some(([store, rows]) => (store === "sales" || store === "moves" || store === "products") && rows.length)) {
+      after(() => checkStockAlerts().catch((err) => console.error("stock alerts", err)));
+    }
     return NextResponse.json({ ok: true, written: writes.length });
   } catch (err) {
     return dbDown(err);

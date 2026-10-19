@@ -1,0 +1,54 @@
+import { DbDown, Panel } from "@/components/hub/bits";
+import { currentTerm } from "@/lib/db";
+import { setupChecks } from "./checks";
+import { TermForm, TestAlert } from "./SettingsForms";
+
+export const metadata = { title: "Settings · SGA Hub" };
+
+export default async function Settings() {
+  const checks = setupChecks();
+  let term: string | null = null;
+  let dbErr: unknown = null;
+  try { term = await currentTerm(); } catch (err) { dbErr = err; }
+  const topic = process.env.NTFY_TOPIC;
+  const ntfyBase = (process.env.NTFY_URL || "https://ntfy.sh").replace(/\/$/, "");
+
+  return (
+    <main className="hubpage">
+      <header className="hubpage__head"><h1>Settings</h1></header>
+      {dbErr !== null && <DbDown err={dbErr} />}
+
+      <Panel title="Setup">
+        <p className="muted small">Set these as environment variables in the Vercel project, then redeploy. Only whether each is set is shown here; values never leave Vercel.</p>
+        <ul className="checks">
+          {checks.map((c) => (
+            <li key={c.key} className={c.ok ? "is-ok" : c.required ? "is-bad" : "is-off"}>
+              <span className="checks__mark" aria-hidden="true">{c.ok ? "✓" : c.required ? "!" : "–"}</span>
+              <div><strong>{c.label}</strong> <code>{c.key}</code>{!c.required && <span className="muted small"> optional</span>}
+                <p className="muted small">{c.help}</p></div>
+            </li>
+          ))}
+        </ul>
+      </Panel>
+
+      <Panel title="Alerts (ntfy)">
+        {topic ? (
+          <>
+            <p>Everyone on the board: install the ntfy app and subscribe to this topic{process.env.NTFY_URL ? ` on ${ntfyBase}` : ""}:</p>
+            <p><code className="code-big">{topic}</code></p>
+            <p className="muted small">Or open <a href={`${ntfyBase}/${encodeURIComponent(topic)}`} target="_blank" rel="noreferrer">{ntfyBase.replace(/^https?:\/\//, "")}/{topic}</a> on the phone. Alerts so far: merch running low or sold out. Kiosk alerts join when the kiosk is connected.</p>
+            <TestAlert />
+          </>
+        ) : <p className="muted">Set NTFY_TOPIC first.</p>}
+      </Panel>
+
+      {term && (
+        <Panel title="Handover">
+          <p>Current term: <strong>{term}</strong>. Only people listed for this term can get a sign-in link.</p>
+          <p className="muted small">When the new board takes over: add them on People under the new term, then switch the term here. Last year&apos;s board stays on record but can no longer sign in. Rotate the till password and the fallback password at the same time.</p>
+          <TermForm current={term} />
+        </Panel>
+      )}
+    </main>
+  );
+}

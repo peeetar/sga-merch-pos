@@ -1,10 +1,11 @@
 "use client";
 
-// The till: tap a product, its colour, its size, and it lands in the cart.
+// The till: tap a product, its colour, its size, and it lands in the cart. A
+// plain article (one colour, one size) goes straight in on the first tap.
 // One tap per decision, stock shown on every button, cash box always in view.
 import { useMemo, useState } from "react";
 import { activeProducts, changeBreakdown, shiftTotals, tenderSuggestions } from "@/lib/calc";
-import { euros, variantKey, type CashMove, type Line, type Product, type Sale, type Shift } from "@/lib/types";
+import { categoryOf, euros, isPlain, lineName, lowMark, variantKey, type CashMove, type Line, type Product, type Sale, type Shift } from "@/lib/types";
 import Garment from "./Garment";
 import { Dialog, Money, MoneyPad } from "./ui";
 
@@ -20,7 +21,11 @@ export default function Sell({ products, levels, cart, setCart, shift, sales, ca
   onCheckout: () => void; onOpenBox: () => void; onFlash: (msg: string) => void;
 }) {
   const [picking, setPicking] = useState<Product | null>(null);
-  const list = activeProducts(products);
+  const [category, setCategory] = useState<string | null>(null);
+  const [armed, setArmed] = useState<string | null>(null); // sold-out plain article tapped once
+  const all = activeProducts(products);
+  const categories = [...new Set(all.map(categoryOf))];
+  const list = category && categories.includes(category) ? all.filter((p) => categoryOf(p) === category) : all;
   const t = shiftTotals(shift, sales, cashmoves);
 
   /** Stock left for a variant once what's already in the cart is taken off. */
@@ -47,7 +52,8 @@ export default function Sell({ products, levels, cart, setCart, shift, sales, ca
     else next.push({ product_id: p.id, product_name: p.name, color_id: color.id, color_name: color.name, size, qty: 1, unit_cents: p.price_cents });
     setCart(next);
     setPicking(null);
-    onFlash(`Added ${p.name} · ${color.name} · ${size}`);
+    setArmed(null);
+    onFlash(isPlain(p) ? `Added ${p.name}` : `Added ${p.name} · ${color.name} · ${size}`);
   }
 
   function setQty(i: number, qty: number) {
@@ -65,22 +71,35 @@ export default function Sell({ products, levels, cart, setCart, shift, sales, ca
               <p>No products yet. Add some in <strong>Stock</strong>.</p>
             </div>
           ) : (
-            <div className="grid">
-              {list.map((p) => {
-                const n = productLeft(p);
-                return (
-                  <button key={p.id} className={"tile" + (n === 0 ? " tile--out" : "")} onClick={() => setPicking(p)}>
-                    <Garment name={p.name} hex={p.colors[0]?.hex || "#cccccc"} size={110} />
-                    <span className="tile__name">{p.name}</span>
-                    <span className="tile__price">{euros(p.price_cents, true)}</span>
-                    <span className="tile__dots">
-                      {p.colors.map((c) => <i key={c.id} style={{ background: c.hex }} title={c.name} />)}
-                    </span>
-                    {n !== null && <span className={"tile__left" + (n === 0 ? " is-out" : n <= 5 ? " is-low" : "")}>{n === 0 ? "Sold out" : `${n} left`}</span>}
-                  </button>
-                );
-              })}
-            </div>
+            <>
+              {categories.length > 1 && (
+                <div className="cats">
+                  <button className={"chip" + (!category ? " is-on" : "")} onClick={() => setCategory(null)}>All</button>
+                  {categories.map((c) => <button key={c} className={"chip" + (category === c ? " is-on" : "")} onClick={() => setCategory(c)}>{c}</button>)}
+                </div>
+              )}
+              <div className="grid">
+                {list.map((p) => {
+                  const n = productLeft(p);
+                  const plain = isPlain(p);
+                  return (
+                    <button key={p.id} className={"tile" + (n === 0 ? " tile--out" : "") + (armed === p.id ? " tile--armed" : "")} onClick={() => {
+                      if (!plain) return setPicking(p);
+                      if (n === 0 && armed !== p.id) return setArmed(p.id);
+                      add(p, p.colors[0].id, p.sizes[0]);
+                    }}>
+                      <Garment name={p.name} hex={p.colors[0]?.hex || "#cccccc"} size={110} />
+                      <span className="tile__name">{p.name}</span>
+                      <span className="tile__price">{euros(p.price_cents, true)}</span>
+                      {plain
+                        ? <span className="tile__hint">{armed === p.id ? "Tap again to sell anyway" : "Tap to add"}</span>
+                        : <span className="tile__dots">{p.colors.map((c) => <i key={c.id} style={{ background: c.hex }} title={c.name} />)}</span>}
+                      {n !== null && <span className={"tile__left" + (n === 0 ? " is-out" : n <= (plain ? lowMark(p) : 5) ? " is-low" : "")}>{n === 0 ? "Sold out" : `${n} left`}</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
           )
         ) : (
           <Picker product={picking} left={left} onBack={() => setPicking(null)} onAdd={(c, s) => add(picking, c, s)} />
@@ -102,7 +121,7 @@ export default function Sell({ products, levels, cart, setCart, shift, sales, ca
                   <Garment name={l.product_name} hex={hex} size={44} />
                   <div className="cline__what">
                     <strong>{l.product_name}</strong>
-                    <span className="muted small">{l.color_name} · {l.size} · {euros(l.unit_cents, true)}</span>
+                    <span className="muted small">{l.color_id === "std" ? "" : `${l.color_name} · ${l.size} · `}{euros(l.unit_cents, true)}</span>
                   </div>
                   <div className="qty">
                     <button className="step step--sm" onClick={() => setQty(i, l.qty - 1)} aria-label="one fewer">−</button>
@@ -219,7 +238,7 @@ export function Checkout({ cart, onCancel, onDone }: {
         <div className="stack">
           <ul className="receipt">
             {cart.map((l, i) => (
-              <li key={i}><span>{l.qty}× {l.product_name} <span className="muted">· {l.color_name} · {l.size}</span></span><span>{euros(l.qty * l.unit_cents)}</span></li>
+              <li key={i}><span>{l.qty}× {l.product_name} {l.color_id !== "std" && <span className="muted">· {l.color_name} · {l.size}</span>}</span><span>{euros(l.qty * l.unit_cents)}</span></li>
             ))}
             <li className="receipt__total"><span>Total</span><span>{euros(total)}</span></li>
           </ul>
@@ -288,7 +307,7 @@ export function SalesDialog({ shift, sales, seller, onVoid, onClose }: {
       <Dialog title="Void this sale?" onClose={() => setVoiding(null)}>
         <p><strong>{euros(voiding.total_cents)}</strong> · {time(voiding.sold_at)} by {voiding.seller}</p>
         <ul className="receipt receipt--sm">
-          {voiding.lines.map((l, i) => <li key={i}><span>{l.qty}× {l.product_name} · {l.color_name} · {l.size}</span></li>)}
+          {voiding.lines.map((l, i) => <li key={i}><span>{l.qty}× {lineName(l)}</span></li>)}
         </ul>
         <p className="muted small">The items go back into stock and the sale stays on record as voided. Give back {euros(voiding.total_cents)} from the box.</p>
         <div className="chips">
@@ -316,7 +335,7 @@ export function SalesDialog({ shift, sales, seller, onVoid, onClose }: {
           <li key={s.id} className={s.voided_at ? "is-void" : ""}>
             <span className="muted small">{time(s.sold_at)}</span>
             <span className="saleslist__what">
-              {s.lines.map((l) => `${l.qty}× ${l.product_name} ${l.color_name} ${l.size}`).join(", ")}
+              {s.lines.map((l) => `${l.qty}× ${lineName(l)}`).join(", ")}
               {s.seller !== seller && <span className="muted small"> · {s.seller}</span>}
             </span>
             <strong>{euros(s.total_cents, true)}</strong>

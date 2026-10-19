@@ -57,13 +57,13 @@ export default function POS() {
     try {
       if (box.count) {
         const { count: _c, ...rows } = box;
-        const res = await fetch("/api/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(rows) });
+        const res = await fetch("/api/pos/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(rows) });
         if (res.status === 401) return setSync("auth");
         if (!res.ok) return setSync("error");
         await local.markSynced(rows);
       }
       const m = await local.getMeta();
-      const res = await fetch("/api/sync" + (m.cursor ? `?since=${encodeURIComponent(m.cursor)}` : ""), { cache: "no-store" });
+      const res = await fetch("/api/pos/sync" + (m.cursor ? `?since=${encodeURIComponent(m.cursor)}` : ""), { cache: "no-store" });
       if (res.status === 401) return setSync("auth");
       if (!res.ok) return setSync("error");
       const pulled = await res.json();
@@ -161,7 +161,7 @@ export default function POS() {
   return (
     <div className="app">
       <header className="bar">
-        <span className="brand"><span className="brand__mark">SGA</span> Merch</span>
+        <span className="brand"><span className="brand__mark">SGA</span> Till</span>
         <nav className="tabs">
           {(["sell", "stock", "stats"] as Tab[]).map((t) => (
             <button key={t} className={"tab" + (tab === t ? " is-on" : "")} onClick={() => setTab(t)}>
@@ -273,7 +273,7 @@ type LoginResult = "ok" | "wrong" | "rate" | "config" | "network";
 
 async function serverLogin(password: string): Promise<LoginResult> {
   try {
-    const res = await fetch("/api/login", {
+    const res = await fetch("/api/pos/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ password }),
@@ -301,7 +301,7 @@ function Login({ knownHash, onUnlock }: { knownHash?: string; onUnlock: (pwHash:
   return (
     <main className="center center--brand">
       <div className="card card--narrow">
-        <p className="brand brand--big"><span className="brand__mark">SGA</span> Merch</p>
+        <p className="brand brand--big"><span className="brand__mark">SGA</span> Till</p>
         <p className="muted">Ask the SGA board for the till password.</p>
         <PasswordForm submitLabel="Unlock" onSubmit={async (pw) => {
           const pwHash = await local.hashPassword(pw);

@@ -1,17 +1,17 @@
 "use client";
 
 // Stock and catalogue. Each product is a colour × size grid of what's on
-// hand; tap it to log a delivery, a recount or a write-off. Edit a product to
-// change its price, colours or sizes.
+// hand (a plain article is a single number); tap it to log a delivery, a
+// recount or a write-off. Edit a product to change its price, category,
+// colours or sizes.
 import { useState } from "react";
-import { euros, variantKey, COLOR_PRESETS, SIZE_PRESETS, type Color, type Product, type Sale, type StockMove } from "@/lib/types";
+import { categoryOf, euros, lowMark, variantKey, COLOR_PRESETS, DEFAULT_CATEGORY, LOW_STOCK, ONE_SIZE, SIZE_PRESETS, STD_COLOR, type Color, type Product, type Sale, type StockMove } from "@/lib/types";
 import Garment from "./Garment";
 import { Dialog } from "./ui";
 
 type Levels = { on: Map<string, number>; tracked: Set<string> };
 type Adjust = { product: Product; mode: StockMove["reason"]; focus?: string };
 
-const LOW = 3;
 
 export default function Stock({ products, levels, sales, seller, onMoves, onSaveProduct }: {
   products: Product[]; levels: Levels; sales: Sale[]; seller: string;
@@ -38,10 +38,12 @@ export default function Stock({ products, levels, sales, seller, onMoves, onSave
           <button className="btn btn--primary" onClick={() => setEditing("new")}>+ New product</button>
         </div>
       </div>
-      <p className="muted small">Tap a number to change it. Grey dashes mean nobody has counted that one yet. Sold-out and low (≤{LOW}) are highlighted.</p>
+      <p className="muted small">Tap a number to change it. Grey dashes mean nobody has counted that one yet. Sold-out and low are highlighted: sized items when a size sells out, plain articles at {LOW_STOCK} or fewer, unless the product sets its own mark.</p>
 
-      <div className="stocklist">
-        {list.map((p) => {
+      {[...new Set(list.map(categoryOf))].map((cat) => (
+      <div key={cat} className="stocklist">
+        <h2 className="h3">{cat}</h2>
+        {list.filter((p) => categoryOf(p) === cat).map((p) => {
           let total = 0, any = false;
           return (
             <section key={p.id} className={"pcard" + (p.archived ? " pcard--archived" : "")}>
@@ -49,7 +51,7 @@ export default function Stock({ products, levels, sales, seller, onMoves, onSave
                 <Garment name={p.name} hex={p.colors[0]?.hex || "#ccc"} size={56} />
                 <div className="pcard__title">
                   <h2>{p.name} {p.archived && <span className="tag">hidden</span>}</h2>
-                  <span className="muted">{euros(p.price_cents)} · {p.colors.length} colours · {p.sizes.length} sizes</span>
+                  <span className="muted">{euros(p.price_cents)} · {categoryOf(p)}{plain(p) ? "" : ` · ${p.colors.length} colours · ${p.sizes.length} sizes`}</span>
                 </div>
                 <div className="row">
                   <button className="btn btn--sm" onClick={() => setAdjust({ product: p, mode: "delivery" })}>+ Delivery</button>
@@ -73,7 +75,7 @@ export default function Stock({ products, levels, sales, seller, onMoves, onSave
                             const tracked = levels.tracked.has(k);
                             const n = levels.on.get(k) || 0;
                             if (tracked) { row += n; rowAny = true; any = true; total += n; }
-                            const cls = !tracked ? "is-none" : n <= 0 ? "is-out" : n <= LOW ? "is-low" : "";
+                            const cls = !tracked ? "is-none" : n <= 0 ? "is-out" : n <= lowMark(p) ? "is-low" : "";
                             return (
                               <td key={s}>
                                 <button className={"cell " + cls} onClick={() => setAdjust({ product: p, mode: tracked ? "count" : "delivery", focus: k })}
@@ -96,6 +98,7 @@ export default function Stock({ products, levels, sales, seller, onMoves, onSave
           );
         })}
       </div>
+      ))}
 
       {adjust && (
         <AdjustDialog {...adjust} levels={levels} onClose={() => setAdjust(null)} onSave={async (rows, reason, note) => {
@@ -108,7 +111,7 @@ export default function Stock({ products, levels, sales, seller, onMoves, onSave
         }} />
       )}
       {editing && (
-        <ProductEditor initial={editing === "new" ? null : editing} nextSort={Math.max(0, ...products.map((p) => p.sort)) + 1}
+        <ProductEditor initial={editing === "new" ? null : editing} categories={[...new Set(products.map(categoryOf))]} nextSort={Math.max(0, ...products.map((p) => p.sort)) + 1}
           onClose={() => setEditing(null)} onSave={async (p) => { await onSaveProduct(p); setEditing(null); }} />
       )}
     </main>
@@ -192,10 +195,16 @@ function AdjustDialog({ product, mode: initialMode, focus, levels, onClose, onSa
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 30) || "c";
 
-function ProductEditor({ initial, nextSort, onClose, onSave }: {
-  initial: Product | null; nextSort: number; onClose: () => void; onSave: (p: Product) => Promise<void>;
+const plain = (p: Product) => p.colors.length === 1 && p.sizes.length === 1 && p.colors[0].id === STD_COLOR.id;
+
+function ProductEditor({ initial, categories, nextSort, onClose, onSave }: {
+  initial: Product | null; categories: string[]; nextSort: number; onClose: () => void; onSave: (p: Product) => Promise<void>;
 }) {
   const [name, setName] = useState(initial?.name || "");
+  const [variants, setVariants] = useState(initial ? !plain(initial) : true);
+  const [category, setCategory] = useState(initial ? categoryOf(initial) : DEFAULT_CATEGORY);
+  const [lowAt, setLowAt] = useState(initial?.low_at !== undefined ? String(initial.low_at) : "");
+  const [plainHex, setPlainHex] = useState(initial && plain(initial) ? initial.colors[0].hex : STD_COLOR.hex);
   const [price, setPrice] = useState(initial ? (initial.price_cents / 100).toFixed(2) : "");
   const [colors, setColors] = useState<Color[]>(initial?.colors || []);
   const [sizes, setSizes] = useState<string[]>(initial?.sizes || ["S", "M", "L", "XL"]);
@@ -205,7 +214,7 @@ function ProductEditor({ initial, nextSort, onClose, onSave }: {
   const [customSize, setCustomSize] = useState("");
 
   const cents = Math.round(parseFloat(price.replace(",", ".")) * 100);
-  const ok = name.trim() && Number.isFinite(cents) && cents >= 0 && colors.length && sizes.length;
+  const ok = name.trim() && Number.isFinite(cents) && cents >= 0 && (!variants || (colors.length && sizes.length));
   const toggleColor = (c: Color) =>
     setColors(colors.some((x) => x.id === c.id) ? colors.filter((x) => x.id !== c.id) : [...colors, c]);
   const toggleSize = (s: string) => {
@@ -222,6 +231,13 @@ function ProductEditor({ initial, nextSort, onClose, onSave }: {
         <div className="stack">
           <label className="lbl">Name<input className="field" value={name} maxLength={60} placeholder="e.g. Zip-up hoodie" onChange={(e) => setName(e.target.value)} /></label>
           <label className="lbl">Price (€)<input className="field" inputMode="decimal" value={price} placeholder="30.00" onChange={(e) => setPrice(e.target.value.replace(/[^0-9.,]/g, ""))} /></label>
+          <label className="lbl">Category
+            <input className="field" list="pos-categories" value={category} maxLength={40} placeholder="Merch, Snacks, Drinks…" onChange={(e) => setCategory(e.target.value)} />
+            <datalist id="pos-categories">{categories.map((c) => <option key={c} value={c} />)}</datalist>
+          </label>
+          <label className="lbl">Warn when this many or fewer are left{variants ? " (per colour and size)" : ""}
+            <input className="field" inputMode="numeric" value={lowAt} placeholder={variants ? "0 (warn when a size sells out)" : String(LOW_STOCK)} onChange={(e) => setLowAt(e.target.value.replace(/\D/g, "").slice(0, 3))} />
+          </label>
           {initial && initial.price_cents !== cents && Number.isFinite(cents) && (
             <p className="muted small">Past sales keep the price they were sold at.</p>
           )}
@@ -239,6 +255,16 @@ function ProductEditor({ initial, nextSort, onClose, onSave }: {
         </div>
 
         <div className="stack">
+          <div className="seg seg--2">
+            <button className={variants ? "is-on" : ""} onClick={() => setVariants(true)}>Colours &amp; sizes</button>
+            <button className={!variants ? "is-on" : ""} onClick={() => setVariants(false)}>Plain article</button>
+          </div>
+          {!variants ? (
+            <>
+              <p className="muted small">One kind, no sizes: a tote, a sticker, a can of cola. The till adds it in one tap.</p>
+              <label className="lbl">Tile colour <input type="color" className="colorpick" value={plainHex} onChange={(e) => setPlainHex(e.target.value)} /></label>
+            </>
+          ) : (<>
           <p className="lbl">Colours</p>
           <div className="chips">
             {[...COLOR_PRESETS, ...extraColors].map((c) => (
@@ -273,13 +299,17 @@ function ProductEditor({ initial, nextSort, onClose, onSave }: {
           {initial && (initial.colors.some((c) => !colors.some((x) => x.id === c.id)) || initial.sizes.some((s) => !sizes.includes(s))) && (
             <p className="muted small">Removed colours or sizes disappear from the till and the stock grid. Their past sales still count in Stats.</p>
           )}
+          </>)}
         </div>
       </div>
       <div className="row">
         <button className="btn grow" onClick={onClose}>Cancel</button>
         <button className="btn btn--primary grow" disabled={!ok} onClick={() => onSave({
           id: initial?.id || "p-" + crypto.randomUUID().slice(0, 8),
-          name: name.trim(), price_cents: cents, colors, sizes, sort, archived,
+          name: name.trim(), price_cents: cents, sort, archived,
+          ...(variants ? { colors, sizes } : { colors: [{ ...STD_COLOR, hex: plainHex.toUpperCase() }], sizes: [ONE_SIZE] }),
+          category: category.trim() || DEFAULT_CATEGORY,
+          ...(lowAt !== "" ? { low_at: Number(lowAt) } : {}),
           updated_at: new Date().toISOString(),
         })}>{initial ? "Save changes" : "Add product"}</button>
       </div>

@@ -3,7 +3,9 @@
 
 export type Color = { id: string; name: string; hex: string };
 
-/** One catalogue item. A sellable unit is product × colour × size. */
+/** One catalogue item. A sellable unit is product × colour × size. A plain
+ *  article (a tote, a sticker, a can of cola) has one colour, STD_COLOR, and
+ *  one size, ONE_SIZE, and the till adds it in one tap. */
 export type Product = {
   id: string;
   name: string;
@@ -13,7 +15,23 @@ export type Product = {
   sort: number;
   archived: boolean;
   updated_at: string; // last write wins, across tablets
+  category?: string;  // groups the sell screen; missing = "Merch"
+  low_at?: number;    // warn at or under this many per variant; missing = lowMark's default
 };
+
+export const LOW_STOCK = 3;
+export const DEFAULT_CATEGORY = "Merch";
+export const STD_COLOR: Color = { id: "std", name: "Standard", hex: "#8B1A1A" };
+export const ONE_SIZE = "One size";
+export const categoryOf = (p: Product) => p.category?.trim() || DEFAULT_CATEGORY;
+
+/** One colour and one size: nothing to pick, so the till adds it in a tap. */
+export const isPlain = (p: Product) => p.colors.length === 1 && p.sizes.length === 1;
+
+/** When a variant counts as low. Merch comes in ones and twos per size, so a
+ *  sized product only warns when a size sells out; a plain article (a crate
+ *  of cola) warns at LOW_STOCK. A product's own low_at overrides both. */
+export const lowMark = (p: Product) => p.low_at ?? (isPlain(p) ? LOW_STOCK : 0);
 
 /** Stock is a ledger: on hand = sum of moves − units sold (not voided). Two
  *  tablets restocking offline merge cleanly because nothing is overwritten. */
@@ -166,3 +184,7 @@ export const SEED_MOVES: StockMove[] = ORDER.flatMap(([product_id, color_id, qty
     note: "Opening stock: Treasury merch order 2025-26",
     by: "Treasury", at: "2026-10-19T00:00:00.000Z",
   })));
+
+/** "AAU Hoodie · Burgundy · M", or just "Cola" for a plain article. */
+export const lineName = (l: Pick<Line, "product_name" | "color_id" | "color_name" | "size">) =>
+  l.color_id === STD_COLOR.id ? l.product_name : `${l.product_name} · ${l.color_name} · ${l.size}`;

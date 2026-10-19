@@ -1,7 +1,8 @@
 {
-  "name": "SGA Merch POS",
-  "short_name": "SGA Merch",
-  "start_url": "/",
+  "name": "SGA Till",
+  "short_name": "SGA Till",
+  "start_url": "/pos",
+  "scope": "/",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#6A1010",
