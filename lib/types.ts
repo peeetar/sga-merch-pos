@@ -115,17 +115,54 @@ export const COLOR_PRESETS: Color[] = [
   { id: "sky", name: "Sky blue", hex: "#9CC3E4" },
 ];
 
-/** First-run catalogue. Fixed ids and an epoch timestamp, so every tablet
- *  seeds the same rows and any real edit replaces them. Prices are guesses:
- *  edit them in Stock → Edit before the first sale. */
+/** First-run catalogue and opening stock: the 2025-26 Treasury merch order.
+ *  Fixed ids and an epoch timestamp, so every tablet seeds the same rows (no
+ *  double-counted stock) and any later edit made in the app wins. */
 const EPOCH = "1970-01-01T00:00:00.000Z";
-const c = (...ids: string[]) => COLOR_PRESETS.filter((p) => ids.includes(p.id));
-const APPAREL = ["S", "M", "L", "XL", "XXL"];
+const SIZES = ["S", "M", "L", "XL", "XXL"];
+const BURGUNDY: Color = { id: "burgundy", name: "Burgundy", hex: "#7A1F2B" };
+const BLACK: Color = { id: "black", name: "Black", hex: "#1B1B1D" };
+const PINK: Color = { id: "pink-dark-logo", name: "Pink (dark pink logo)", hex: "#F2A9C4" };
+const BROWN: Color = { id: "brown-white-logo", name: "Brown (white logo)", hex: "#5B3A29" };
+const GRAY_BURG: Color = { id: "gray-burgundy-logo", name: "College Gray (burgundy logo)", hex: "#A3A7AB" };
+const GRAY: Color = { id: "college-gray", name: "College Gray", hex: "#A3A7AB" };
+const WHITE_BLUE: Color = { id: "white-blue-logo", name: "White (dark blue logo)", hex: "#F7F7F5" };
+
+const product = (id: string, name: string, euro: number, colors: Color[], sort: number): Product =>
+  ({ id, name, price_cents: euro * 100, colors, sizes: SIZES, sort, archived: false, updated_at: EPOCH });
+
 export const SEED: Product[] = [
-  { id: "seed-zip", name: "Zip-up hoodie", price_cents: 3500, colors: c("black", "grey", "burgundy"), sizes: APPAREL, sort: 1, archived: false, updated_at: EPOCH },
-  { id: "seed-hoodie", name: "Hoodie", price_cents: 3000, colors: c("black", "grey", "burgundy", "navy"), sizes: APPAREL, sort: 2, archived: false, updated_at: EPOCH },
-  { id: "seed-crew", name: "Crewneck", price_cents: 2500, colors: c("grey", "cream", "navy"), sizes: APPAREL, sort: 3, archived: false, updated_at: EPOCH },
-  { id: "seed-tee", name: "T-shirt", price_cents: 1500, colors: c("white", "black", "burgundy"), sizes: APPAREL, sort: 4, archived: false, updated_at: EPOCH },
-  { id: "seed-tote", name: "Tote bag", price_cents: 1000, colors: c("cream", "black"), sizes: ["One size"], sort: 5, archived: false, updated_at: EPOCH },
-  { id: "seed-cap", name: "Cap", price_cents: 1200, colors: c("black", "burgundy"), sizes: ["One size"], sort: 6, archived: false, updated_at: EPOCH },
+  product("aau-hoodie", "AAU Hoodie", 20, [BURGUNDY, PINK, BLACK, BROWN, GRAY_BURG], 1),
+  product("aau-sweater", "AAU Sweater", 15, [BURGUNDY, BLACK], 2),
+  product("aau-tee", "AAU T-Shirt", 10, [BURGUNDY, PINK, WHITE_BLUE], 3),
+  product("act-zip", "ACT Zip-Up Jacket", 20, [GRAY_BURG, BURGUNDY], 4),
+  product("aau-mascot-hoodie", "AAU Mascot Hoodie", 20, [GRAY], 5),
 ];
+
+/** Quantities per size, in S M L XL XXL order, straight from the order sheet. */
+const ORDER: [string, string, number[]][] = [
+  ["aau-hoodie", "burgundy", [2, 2, 2, 2, 1]],
+  ["aau-hoodie", "pink-dark-logo", [2, 2, 2, 1, 0]],
+  ["aau-hoodie", "black", [0, 1, 1, 1, 0]],
+  ["aau-hoodie", "brown-white-logo", [0, 1, 2, 2, 0]],
+  ["aau-hoodie", "gray-burgundy-logo", [1, 2, 2, 2, 1]],
+  ["aau-sweater", "burgundy", [1, 2, 2, 1, 0]],
+  ["aau-sweater", "black", [0, 2, 2, 1, 0]],
+  ["aau-tee", "burgundy", [1, 2, 2, 2, 1]],
+  ["aau-tee", "pink-dark-logo", [2, 3, 1, 1, 0]],
+  ["aau-tee", "white-blue-logo", [1, 2, 2, 1, 0]],
+  ["act-zip", "gray-burgundy-logo", [0, 1, 1, 1, 0]],
+  ["act-zip", "burgundy", [0, 1, 1, 1, 0]],
+  ["aau-mascot-hoodie", "college-gray", [0, 1, 2, 2, 0]],
+];
+
+/** Every variant gets a row, zeros included, so sizes that weren't ordered
+ *  show "0" (sold out) rather than "not counted". */
+export const SEED_MOVES: StockMove[] = ORDER.flatMap(([product_id, color_id, qty]) =>
+  SIZES.map((size, i) => ({
+    id: `opening-${product_id}-${color_id}-${size}`,
+    product_id, color_id, size, delta: qty[i],
+    reason: "delivery" as const,
+    note: "Opening stock: Treasury merch order 2025-26",
+    by: "Treasury", at: "2026-10-19T00:00:00.000Z",
+  })));

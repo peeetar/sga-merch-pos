@@ -37,8 +37,11 @@ and an offline-first copy on the tablet, behind one shared password.
   colour) and sizes, or hide it from the till. Past sales keep the price they
   were sold at.
 
-The first run seeds a starter catalogue (zip-up, hoodie, crewneck, tee, tote,
-cap). **The prices are placeholders: set the real ones before the first sale.**
+The catalogue and opening stock are the 2025-26 Treasury merch order (AAU
+hoodie, sweater, tee, mascot hoodie and ACT zip-up, 75 items). A new tablet
+starts with it even before its first sync; the same rows are in
+`scripts/import-treasury-order.sql` for loading into an existing database.
+Both use fixed ids, so stock is never counted twice.
 
 ## Stats
 

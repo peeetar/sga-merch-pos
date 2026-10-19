@@ -8,7 +8,7 @@ import Stock from "@/components/Stock";
 import { Dialog, PasswordForm, SellerForm, SyncBadge, type SyncState } from "@/components/ui";
 import { countTotal, stockLevels, trackedVariants } from "@/lib/calc";
 import * as local from "@/lib/local";
-import { SEED, euros, type Bundle, type CashMove, type Line, type Product, type Sale, type Shift, type StockMove, type StoreName } from "@/lib/types";
+import { SEED, SEED_MOVES, euros, type Bundle, type CashMove, type Line, type Product, type Sale, type Shift, type StockMove, type StoreName } from "@/lib/types";
 
 type Tab = "sell" | "stock" | "stats";
 type Modal = "checkout" | "box" | "close" | "sales" | "seller" | "reauth" | null;
@@ -93,7 +93,10 @@ export default function POS() {
         // before falling back to the starter one.
         if ((m.unlockedUntil || 0) > Date.now()) await trySync();
         d = await local.loadAll();
-        if (!d.products.length) for (const p of SEED) await local.put("products", p);
+        if (!d.products.length) {
+          for (const p of SEED) await local.put("products", p);
+          for (const mv of SEED_MOVES) await local.put("moves", mv);
+        }
         d = await local.loadAll();
       }
       setData(d);
