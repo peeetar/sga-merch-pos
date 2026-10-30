@@ -18,12 +18,12 @@ emails.
 | **Till & merch** (`/merch`): takings, stock on hand, cash boxes, sales CSV | ✅ |
 | **People**: every SGA position, who holds it this term, handover | ✅ |
 | **Settings**: setup checklist, ntfy topic and test alert, term switch | ✅ |
-| Event supplies: snacks, drinks, BBQ stock and a how-much-to-buy planner | planned |
-| Finance: one ledger for till, kiosk top-ups, receipts and reimbursements | planned |
-| Meetings: voice memo → Gemini → notes in Notion | planned |
-| Coffee kiosk: the Pi reports in; status, stock, top-ups | planned |
-| Documents: photos and files on Vercel Blob | planned |
-| Year-end report (PDF) | planned, contents to be decided |
+| **Finance**: one ledger for till sales, kiosk top-ups, spending, receipts and reimbursements | ✅ |
+| **Meetings**: voice memo → Gemini → notes and transcript in Notion | ✅ |
+| **Coffee kiosk**: the Pi reports in every minute; status, columns, top-ups, refill and maintenance commands | ✅ hub side; Pi side in `sga-coffee-kiosk` |
+| **Documents**: photos and files in a private Vercel Blob store | ✅ |
+| Event supplies: snacks, drinks, BBQ stock and a how-much-to-buy planner | on hold, waiting for past receipts |
+| Year-end report (PDF) | on hold, contents to be decided |
 
 ## Signing in
 
@@ -76,6 +76,75 @@ checks it works. So far the hub sends:
 
 Kiosk alerts join once the kiosk is connected.
 
+## Finance
+
+One list per term (1 Aug–31 Jul), with *Fall* and *Spring* views for the
+mid-year and end-of-year reports. Cash is the only money there is.
+
+- **Automatic:** till sales and kiosk cash top-ups, one line per day, read from
+  where they happen, so they're never typed twice.
+- **Typed in:** spending (with a receipt photo), who paid out of their own
+  pocket, and when they were paid back. *Owed to people* totals what's still
+  due; *Paid back* settles it. Entries are voided, never deleted.
+- **Import from sheet:** copy rows (with the header) from the Treasurer's
+  Google Sheet and paste them in. Columns are matched by header; a total row
+  is skipped; pasting the same rows again adds nothing. For the beta the hub
+  is the record; reading the sheet live comes later.
+- **Till pay-outs** (cash taken out of a till box) are listed separately, so
+  they aren't counted twice.
+- **Export CSV** for the report.
+
+## Meetings
+
+*+ New recording*: pick board / Dean / other, the date, who was there, and the
+voice memo. With the Meetings page open, the hub then runs four steps, one
+request each, saving after every step:
+
+1. send the recording from Blob to Gemini;
+2. transcribe it (`[mm:ss]` lines), then apply the board's fixes list
+   (*Names & fixes*, e.g. `Sweden government => Student Government`);
+3. write the notes in the board's format: summary, attendees, main
+   decisions, one section per topic, action items, next meeting, plus what
+   was assumed or unclear;
+4. file the page in the Notion Meetings database (Attendees, Summary,
+   Projects), with the transcript in a toggle at the bottom, then delete the
+   recording from Blob.
+
+If a step fails (a missing key, or the free tier's per-minute limit), the
+meeting page shows why and *Try again* carries on from that step. *Rewrite
+notes* redoes step 3 from the saved transcript. *Names & fixes* is kept in
+the database, not here, because it is mostly people's names.
+
+On Gemini's free tier, Google may use what's sent to improve its products.
+The board agreed that's fine for meeting audio.
+
+## Coffee kiosk link
+
+The Pi calls out; nothing calls in. Every minute it POSTs to
+`/api/kiosk/report` with `Authorization: Bearer <KIOSK_TOKEN>`:
+
+```json
+{
+  "boot_id": "…", "version": "<git sha>", "reported_at": "<ISO time>",
+  "mode": "in_service | maintenance | out_of_service",
+  "columns": [{ "index": 0, "name": "Ristretto", "sku": "…", "color": "#304E84", "stock": 7, "capacity": 10, "enabled": true }],
+  "today": { "vends": 14, "failed": 1, "topups_cents": 1500 },
+  "health": { "cpu_temp_c": 51.2, "sd_card": "Healthy" },
+  "alerts": [{ "code": "jam", "level": "error", "detail": "…", "since": "…" }],
+  "topups": [{ "id": "grant-123", "at": "<ISO time>", "cents": 500, "coffees": 6 }]
+}
+```
+
+Top-ups are amounts only (never who), stored once per `id`, and feed
+Finance. The reply carries the queued commands:
+`{ "commands": [{ "id", "kind": "maintenance" | "refill" | "reload", "args" }] }`.
+`refill` args are `{ column, to }` or `{ column, add }`; `maintenance` is
+`{ on }`. The Pi runs each id once and reports back to `/api/kiosk/ack` with
+`{ id, ok, result }`. A command not picked up within 15 minutes expires.
+The hub shows the last report with "last seen", so the hub keeps working while
+the kiosk is offline. The Pi's own alerts (offline, jams, stock) go to the same
+ntfy topic.
+
 ## Setup (Vercel)
 
 1. New Vercel project from this repo. The region is pinned to `fra1` in
@@ -86,13 +155,24 @@ Kiosk alerts join once the kiosk is connected.
    over. The hub's own tables (`hub_*`) are created on first use.
 3. Environment variables, listed in `.env.example`. *Settings* in the hub
    shows which are missing; values never leave Vercel.
-4. **Resend**: create the account with the SGA mailbox, verify a sending
+4. **File storage**: Storage → Create → **Blob**, access **Private**,
+   connected to the project (sets `BLOB_READ_WRITE_TOKEN`).
+5. **Gemini**: a free API key from aistudio.google.com, made with the SGA
+   Google account → `GEMINI_API_KEY`.
+6. **Notion**: an internal integration in the SGA workspace
+   (notion.so/my-integrations). Connect it to the Meetings and Projects
+   databases (••• → Connections), then set `NOTION_TOKEN`,
+   `NOTION_MEETINGS_DATA_SOURCE` (the Meetings data source id) and optionally
+   `NOTION_PROJECTS_DATA_SOURCE`.
+7. **Kiosk**: `KIOSK_TOKEN` (24+ random characters, the same as `HUB_TOKEN`
+   on the Pi) and optionally `KIOSK_DASHBOARD_URL`.
+8. **Resend**: create the account with the SGA mailbox, verify a sending
    domain, and set `RESEND_API_KEY` and `HUB_EMAIL_FROM`. Without a verified
    domain, Resend only delivers to the account's own address. Until then, the
    shared password works.
-5. Sign in with a bootstrap email or the shared password, go to **People**,
+9. Sign in with a bootstrap email or the shared password, go to **People**,
    then *Paste a list*.
-6. Switch the merch tablets to the new address (`/pos`), and retire the old
+10. Switch the merch tablets to the new address (`/pos`), and retire the old
    merch till's Vercel project once they've synced.
 
 Every push to `main` deploys on Vercel. CI (`.github/workflows/ci.yml`) runs
@@ -134,3 +214,7 @@ still sells offline, and the hub pages say the database is missing.
 - `lib/calc.ts`, `lib/merge.ts`, `lib/local.ts`: the till's maths, merge rules and offline copy
 - `lib/merch.ts`, `lib/stock-alerts.ts`: what the hub reads from the till, and the ntfy alerts
 - `lib/notify.ts`: Resend and ntfy · `lib/time.ts`: Athens days and times
+- `lib/finance.ts`, `lib/sheet-import.ts`: the ledger and the Google Sheet paste
+- `lib/meetings.ts`, `lib/gemini.ts`, `lib/notion.ts`: the meetings pipeline
+- `lib/kiosk.ts`, `app/api/kiosk/*`: the kiosk's reports and commands
+- `lib/files.ts`, `app/api/files/*`: private uploads and downloads

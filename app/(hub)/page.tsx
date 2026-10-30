@@ -1,11 +1,13 @@
 import Link from "next/link";
-import { DbDown, Panel, Stat } from "@/components/hub/bits";
+import { DbDown, Panel, Stat, ago } from "@/components/hub/bits";
 import { live } from "@/lib/calc";
 import { currentTerm, ensureSchema, sql } from "@/lib/db";
+import { loadKiosk } from "@/lib/kiosk";
 import { lowStock, loadMerch, variantName } from "@/lib/merch";
 import { ntfyConfigured } from "@/lib/notify";
 import { athensDay, lastDays, termStart } from "@/lib/time";
 import { euros } from "@/lib/types";
+
 import { setupChecks } from "./settings/checks";
 
 export const metadata = { title: "Overview · SGA Hub" };
@@ -14,7 +16,7 @@ export default async function Overview() {
   let body: React.ReactNode;
   try {
     await ensureSchema();
-    const [data, term] = await Promise.all([loadMerch(), currentTerm()]);
+    const [data, term, kiosk] = await Promise.all([loadMerch(), currentTerm(), loadKiosk()]);
     const [{ filled }] = (await sql()`SELECT count(*)::int AS filled FROM hub_people WHERE term = ${term}`) as { filled: number }[];
     const [{ seats }] = (await sql()`SELECT sum(seats)::int AS seats FROM hub_roles`) as { seats: number }[];
 
@@ -55,8 +57,16 @@ export default async function Overview() {
             )}
           </Panel>
 
-          <Panel title="Coffee kiosk">
-            <p className="muted">Not connected yet. Once the Pi reports in, its status, column stock and today&apos;s vends show here, and the hub keeps working when the kiosk is offline.</p>
+          <Panel title="Coffee kiosk" action={<Link className="linkbtn" href="/kiosk">Kiosk</Link>}>
+            {!kiosk.report ? <p className="muted">Not connected yet. Once the Pi reports in, its status shows here.</p> : (
+              <>
+                <p><span className={"dot-status dot-status--" + (!kiosk.online ? "off" : kiosk.report.mode === "in_service" ? "ok" : kiosk.report.mode === "maintenance" ? "warn" : "bad")}>
+                  {!kiosk.online ? "Offline" : kiosk.report.mode === "in_service" ? "In service" : kiosk.report.mode === "maintenance" ? "Maintenance" : "Out of service"}</span>
+                  <span className="muted small"> · {kiosk.online ? "reported" : "last seen"} {ago(kiosk.receivedAt)}</span></p>
+                <p><strong>{kiosk.report.today.vends}</strong> coffees today · <strong>{kiosk.report.columns.reduce((n, c) => n + Math.max(0, c.stock), 0)}</strong> capsules left
+                  {kiosk.report.columns.some((c) => c.enabled && c.sku && c.stock <= 0) && <span className="pill pill--bad"> a column is empty</span>}</p>
+              </>
+            )}
           </Panel>
 
           <Panel title="Board" action={<Link className="linkbtn" href="/people">People</Link>}>
