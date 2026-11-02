@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 
 const TABS = [
   { href: "/kiosk", label: "Status" },
+  { href: "/kiosk/sell", label: "Sell" },
   { href: "/kiosk/students", label: "Students" },
   { href: "/kiosk/stock", label: "Stock" },
   { href: "/kiosk/signups", label: "Sign-ups" },
@@ -12,6 +13,7 @@ const TABS = [
   { href: "/kiosk/cash", label: "Cash" },
   { href: "/kiosk/sales", label: "Sales" },
   { href: "/kiosk/system", label: "System" },
+  { href: "/kiosk/log", label: "Log" },
 ];
 
 export default function KioskTabs() {

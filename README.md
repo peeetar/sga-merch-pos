@@ -20,7 +20,7 @@ emails.
 | **Settings**: setup checklist, ntfy topic and test alert, term switch | ✅ |
 | **Finance**: one ledger for till sales, kiosk top-ups, spending, receipts and reimbursements | ✅ |
 | **Meetings**: voice memo → Gemini → notes and transcript in Notion | ✅ |
-| **Coffee kiosk**: live status, students, top-ups, stock, sign-ups, alerts, cash, sales and system from the Pi | ✅ with `sga-coffee-kiosk` |
+| **Coffee kiosk**: live status, selling with a cash box, students, stock, sign-ups, alerts, cash, sales, system and the activity log | ✅ with `sga-coffee-kiosk` |
 | **Documents**: photos and files in a private Vercel Blob store | ✅ |
 | Event supplies: snacks, drinks, BBQ stock and a how-much-to-buy planner | on hold, waiting for past receipts |
 | Year-end report (PDF) | on hold, contents to be decided |
@@ -122,18 +122,28 @@ The board agreed that's fine for meeting audio.
 
 There are two lines, and both are needed.
 
-**The hub calls the Pi, live** (`lib/pi.ts`). Everything under *Coffee kiosk*:
-balances, top-ups, PIN resets, stock, sign-ups, alerts, cash, sales, system. Only
+This hub is the only dashboard the board uses. The kiosk doesn't depend on it:
+vending, PINs and balances all live on the Pi, in its own repo.
+
+**The hub calls the Pi, live** (`lib/pi.ts`). Everything under *Coffee kiosk*. Only
 this server talks to the Pi, over Tailscale Funnel at `PI_API_URL` with
 `PI_API_TOKEN`; browsers never do. Each call carries the signed-in board member's
-email for the Pi's audit log. Students stay on the Pi: nothing from these calls is
-stored here. Hardware tests, restarts, deploys, settings and fixing a mistyped ID
-aren't reachable this way on purpose: they stay on the Pi, over SSH. The Pi's
-`services/hub_api.py` is the list. With the Pi offline these pages say so, and a
-top-up can't be taken; *Status* falls back to the last report below.
+email for the Pi's audit log. Balances stay on the Pi; the only student IDs kept
+here are those on sales waiting to reach it. Hardware tests, restarts, deploys,
+settings and editing the capsule catalogue aren't reachable this way on purpose:
+they're for whoever looks after the Pi, over SSH. The Pi's `services/hub_api.py`
+is the list. With the Pi offline the live pages say so, and *Status* falls back
+to the last report below.
 
-A top-up carries a request id. If the Pi doesn't answer, pressing the same amount
-again is safe: it counts once.
+**Sell** is the coffee cash box: count it in, sell, close it with a recount. Sales
+and shifts are saved here first (`lib/sell.ts`), then sent to the Pi, which counts
+each id once however often it arrives. With the Pi off, selling still works and
+sales wait here; they go out on the next page view, sale, or minute report.
+Selling needs internet on the seller's device, unlike the merch till.
+
+The *Top up* button on a student's page goes straight to the Pi and needs it
+online. It carries a request id, so if the Pi doesn't answer, pressing the same
+amount again is safe. It doesn't count in a cash box; that's what Sell is for.
 
 **The Pi calls the hub, every minute.** This keeps *Status* and Finance working
 when the Pi can't be reached. Every minute it POSTs to
@@ -189,8 +199,10 @@ ntfy topic.
    shared password works.
 9. Sign in with a bootstrap email or the shared password, go to **People**,
    then *Paste a list*.
-10. Switch the merch tablets to the new address (`/pos`), and retire the old
-   merch till's Vercel project once they've synced.
+10. Move the merch tablets together, between sales: sync each one on the old
+   address, then add `https://sgahub.vercel.app/pos` to its home screen. Unsynced
+   sales don't carry over, because the new address has its own offline storage.
+   Retire the old till's Vercel project once every tablet has moved.
 
 Every push to `main` deploys on Vercel. CI (`.github/workflows/ci.yml`) runs
 the typecheck and build on every push and PR.

@@ -50,6 +50,13 @@ export async function adjust(id: string, amount: number, reason: string): Promis
   return settle(res, "Balance corrected.", `/kiosk/students/${id}`);
 }
 
+export async function mergeStudent(wrong: string, right: string): Promise<Outcome> {
+  const me = await requireBoard();
+  if (!/^\d{1,20}$/.test(wrong) || !/^\d{1,20}$/.test(right)) return bad("Both must be full student IDs.");
+  const res = await piPost("/students/merge", me.email, { from: wrong, into: right });
+  return settle(res, `Moved everything from ${wrong} to ${right}.`, "/kiosk/students", `/kiosk/students/${right}`);
+}
+
 export async function resetPin(id: string): Promise<Outcome> {
   const me = await requireBoard();
   if (!ID.test(id)) return bad("Bad ID.");
@@ -126,6 +133,19 @@ export async function enableColumn(index: number, enabled: boolean): Promise<Out
   return settle(res, enabled ? "Column on." : "Column off.", "/kiosk", "/kiosk/stock");
 }
 
+export async function setShelf(sku: string, sleeves: number): Promise<Outcome> {
+  const me = await requireBoard();
+  if (!ID.test(sku) || !Number.isInteger(sleeves) || sleeves < 0) return bad("That isn't a shelf count.");
+  const res = await piPut(`/inventory/${encodeURIComponent(sku)}`, me.email, { sleeves });
+  return settle(res, "Shelf count saved.", "/kiosk/stock");
+}
+
+export async function addDelivery(d: { sku: string; sleeves: number; cost_cents: number; bought_at: string; supplier: string }): Promise<Outcome> {
+  const me = await requireBoard();
+  const res = await piPost("/purchases", me.email, d);
+  return settle(res, "Delivery recorded. Its sleeves are on the shelf count.", "/kiosk/stock");
+}
+
 export async function clearJams(index: number): Promise<Outcome> {
   const me = await requireBoard();
   if (!column(index)) return bad("Bad column.");
@@ -133,7 +153,29 @@ export async function clearJams(index: number): Promise<Outcome> {
   return settle(res, "Jams cleared.", "/kiosk", "/kiosk/stock");
 }
 
+// --- cash ----------------------------------------------------------------------
+
+export async function recordHandover(toEmail: string, cents: number, note: string): Promise<Outcome> {
+  const me = await requireBoard();
+  if (!Number.isInteger(cents) || cents < 1) return bad("Enter the amount.");
+  const res = await piPost("/cash/handovers", me.email, { to_email: toEmail, amount_cents: cents, note: note.trim().slice(0, 200) });
+  return settle(res, "Recorded. They confirm it from their own sign-in.", "/kiosk/cash");
+}
+
+export async function confirmHandover(id: number): Promise<Outcome> {
+  const me = await requireBoard();
+  if (!Number.isInteger(id)) return bad("Bad handover.");
+  const res = await piPost(`/cash/handovers/${id}/confirm`, me.email);
+  return settle(res, "Confirmed.", "/kiosk/cash");
+}
+
 // --- alerts --------------------------------------------------------------------
+
+export async function muteAlert(code: string, hours: number): Promise<Outcome> {
+  const me = await requireBoard();
+  const res = await piPost("/alerts/mute", me.email, { code, hours });
+  return settle(res, hours ? `Muted for ${hours} hours.` : "Unmuted.", "/kiosk/alerts");
+}
 
 export async function alertState(id: number, to: "ack" | "resolve"): Promise<Outcome> {
   const me = await requireBoard();

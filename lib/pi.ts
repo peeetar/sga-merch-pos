@@ -9,7 +9,7 @@
 //
 // Writes are never retried here. A timeout doesn't mean a write failed, and
 // the money is real: the top-up form resends with the same request id instead,
-// which the Pi counts once.
+// and the Sell page's sales carry their own ids, so the Pi counts each once.
 
 const TIMEOUT_MS = 8000;
 
@@ -26,13 +26,13 @@ export function piConfigured(): boolean {
   return !!process.env.PI_API_URL && (process.env.PI_API_TOKEN || "").length >= 32;
 }
 
-async function call<T>(method: string, path: string, actor: string, body?: unknown): Promise<PiResult<T>> {
+async function call<T>(method: string, path: string, actor: string, body?: unknown, timeoutMs = TIMEOUT_MS): Promise<PiResult<T>> {
   if (!piConfigured()) return { ok: false, kind: "unset", message: "PI_API_URL and PI_API_TOKEN aren't set." };
   const url = process.env.PI_API_URL!.replace(/\/+$/, "") + "/admin/api" + path;
   let res: Response;
   try {
     res = await fetch(url, {
-      method, cache: "no-store", redirect: "error", signal: AbortSignal.timeout(TIMEOUT_MS),
+      method, cache: "no-store", redirect: "error", signal: AbortSignal.timeout(timeoutMs),
       headers: {
         Authorization: `Bearer ${process.env.PI_API_TOKEN}`, "X-Hub-Actor": actor,
         ...(body === undefined ? {} : { "Content-Type": "application/json" }),
@@ -49,7 +49,7 @@ async function call<T>(method: string, path: string, actor: string, body?: unkno
 }
 
 export const piGet = <T>(path: string, actor: string) => call<T>("GET", path, actor);
-export const piPost = <T = object>(path: string, actor: string, body: unknown = {}) => call<T>("POST", path, actor, body);
+export const piPost = <T = object>(path: string, actor: string, body: unknown = {}, timeoutMs?: number) => call<T>("POST", path, actor, body, timeoutMs);
 export const piPut = <T = object>(path: string, actor: string, body: unknown) => call<T>("PUT", path, actor, body);
 export const piDelete = <T = object>(path: string, actor: string) => call<T>("DELETE", path, actor);
 

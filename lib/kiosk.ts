@@ -66,7 +66,7 @@ export function parseReport(b: Record<string, unknown>): { report: KioskReport; 
   const alerts = Array.isArray(b.alerts) ? (b.alerts as Record<string, unknown>[]).filter((a) => a && isStr(a.code, 60) && isStr(a.level, 10)).slice(0, 30)
     .map((a) => ({ code: a.code as string, level: a.level as string, detail: isStr(a.detail, 300) ? a.detail : null, since: isStr(a.since, 40) ? a.since : null })) : [];
   const topups = Array.isArray(b.topups) ? (b.topups as Record<string, unknown>[])
-    .filter((x) => x && isStr(x.id, 64) && isStr(x.at, 40) && !Number.isNaN(Date.parse(x.at as string)) && isInt(x.cents, 1, 100_000) && isInt(x.coffees, 0, 1000))
+    .filter((x) => x && isStr(x.id, 64) && isStr(x.at, 40) && !Number.isNaN(Date.parse(x.at as string)) && x.cents !== 0 && isInt(x.cents, -100_000, 100_000) && isInt(x.coffees, -1000, 1000))
     .slice(0, 2000).map((x) => ({ id: x.id as string, at: x.at as string, cents: x.cents as number, coffees: x.coffees as number })) : [];
   return {
     report: {

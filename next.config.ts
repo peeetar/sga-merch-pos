@@ -6,15 +6,6 @@ const config: NextConfig = {
   async headers() {
     return [{ source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache" }] }];
   },
-  // Tablets installed before the hub moved the till to /pos still run the old
-  // page until their service worker updates. These keep its sales syncing.
-  async rewrites() {
-    return [
-      { source: "/api/sync", destination: "/api/pos/sync" },
-      { source: "/api/login", destination: "/api/pos/login" },
-      { source: "/api/logout", destination: "/api/pos/logout" },
-    ];
-  },
 };
 
 export default config;

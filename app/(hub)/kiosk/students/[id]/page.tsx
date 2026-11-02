@@ -5,7 +5,7 @@ import { piGet, type PiConfig, type PiStudentDetail } from "@/lib/pi";
 import { athensDate, athensTime } from "@/lib/time";
 import { euros } from "@/lib/types";
 import { PiDown } from "../../PiDown";
-import { Adjust, Housekeeping, TopUp } from "./StudentActions";
+import { Adjust, FixId, Housekeeping, TopUp } from "./StudentActions";
 
 export const metadata = { title: "Student · SGA Hub" };
 
@@ -40,10 +40,12 @@ export default async function Student({ params }: { params: Promise<{ id: string
       <div className="cols">
         <Panel title="Top up">
           {cfg.ok ? <TopUp id={s.student_id} bundles={cfg.bundles} /> : <p className="muted">The price list didn&apos;t load.</p>}
+          <p className="muted small">At a stall or office hours, use <Link href="/kiosk/sell">Sell</Link>, so the cash counts in the box.</p>
         </Panel>
         <Panel title="Fix something">
           <Adjust id={s.student_id} />
           <Housekeeping id={s.student_id} locked={s.locked_for > 0} hasPin={s.has_pin} staff={s.kind === "staff"} />
+          {s.kind === "student" && cfg.ok && <FixId id={s.student_id} length={cfg.student_id_length} />}
         </Panel>
       </div>
       <Panel title="History">

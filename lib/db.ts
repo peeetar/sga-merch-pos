@@ -122,6 +122,18 @@ export function ensureSchema() {
         ok          BOOLEAN,
         result      TEXT
       )`,
+      // The coffee cash box: shifts and top-ups sold from the hub, kept here
+      // until the Pi has them. `synced` is the version the Pi last accepted.
+      q`CREATE TABLE IF NOT EXISTS hub_coffee_rows (
+        kind        TEXT NOT NULL CHECK (kind IN ('shift', 'sale')),
+        id          TEXT NOT NULL,
+        data        JSONB NOT NULL,
+        version     INT NOT NULL DEFAULT 1,
+        synced      INT NOT NULL DEFAULT 0,
+        rejected    TEXT,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+        PRIMARY KEY (kind, id)
+      )`,
       // A meeting recording on its way to Notion. `status` is the next step
       // to run (upload, transcribe, notes, notion, done), so a failed one
       // carries on from there; `running_since` stops two runs at once.

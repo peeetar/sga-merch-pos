@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { euros } from "@/lib/types";
-import { adjust, removeStaff, resetPin, topUp, unlock } from "../../live-actions";
+import { adjust, mergeStudent, removeStaff, resetPin, topUp, unlock } from "../../live-actions";
 import { useAct } from "../../useAct";
 
 export function TopUp({ id, bundles }: { id: string; bundles: { cents: number; coffees: number }[] }) {
@@ -62,5 +62,24 @@ export function Housekeeping({ id, locked, hasPin, staff }: { id: string; locked
       </div>
       {note}
     </div>
+  );
+}
+
+export function FixId({ id, length }: { id: string; length: number }) {
+  const router = useRouter();
+  const [right, setRight] = useState("");
+  const { busy, run, note } = useAct();
+  return (
+    <form className="stack" onSubmit={(e) => {
+      e.preventDefault();
+      if (confirm(`Move everything from ${id} to ${right}? ${id} stops existing.`)) run(() => mergeStudent(id, right), (o) => { if (o.ok) router.push(`/kiosk/students/${right}`); });
+    }}>
+      <p className="muted small">Typed the wrong ID at a sale? Move this balance and history to the right one.</p>
+      <div className="row row--tight">
+        <input className="field field--sm" inputMode="numeric" placeholder="The right ID" value={right} onChange={(e) => setRight(e.target.value.replace(/\D/g, "").slice(0, length))} aria-label="The right ID" />
+        <button className="btn btn--sm" disabled={busy || right.length !== length}>Move</button>
+      </div>
+      {note}
+    </form>
   );
 }
