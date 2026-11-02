@@ -4,7 +4,7 @@
 // call its own Sell tab uses. That call counts each id once however many times
 // it arrives, so sending again is always safe. If the Pi is off, sales wait
 // here and go out when it's back: on the next page view, the next sale, or the
-// Pi's next minute report.
+// Pi's next minute report. A closed shift is deleted here once the Pi has it.
 import { randomUUID } from "node:crypto";
 import { ensureSchema, getSetting, setSetting, sql } from "./db";
 import { countTotal } from "./calc";
@@ -127,6 +127,14 @@ export async function flushSell(actor: string): Promise<{ pending: number; balan
     const why = res.rejected[r.id];
     return why ? [q`UPDATE hub_coffee_rows SET rejected = ${why.slice(0, 300)} WHERE kind = ${r.kind} AND id = ${r.id}`] : [];
   }));
+  // Students stay on the Pi. Once a closed shift is safely there, nothing about
+  // it needs to stay here; a refused sale stays until someone deals with it.
+  await q.transaction([
+    q`DELETE FROM hub_coffee_rows s WHERE s.kind = 'sale' AND s.synced >= s.version AND s.rejected IS NULL AND EXISTS (
+        SELECT 1 FROM hub_coffee_rows c WHERE c.kind = 'shift' AND c.id = s.data->>'shift_id' AND c.data->>'closed_at' IS NOT NULL AND c.synced >= c.version)`,
+    q`DELETE FROM hub_coffee_rows c WHERE c.kind = 'shift' AND c.data->>'closed_at' IS NOT NULL AND c.synced >= c.version AND NOT EXISTS (
+        SELECT 1 FROM hub_coffee_rows s WHERE s.kind = 'sale' AND s.data->>'shift_id' = c.id AND s.rejected IS NULL)`,
+  ]);
   const [left] = (await q`SELECT count(*)::int AS n FROM hub_coffee_rows WHERE synced < version AND rejected IS NULL`) as { n: number }[];
   return { pending: left.n, balances: res.balances };
 }

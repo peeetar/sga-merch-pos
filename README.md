@@ -128,8 +128,9 @@ vending, PINs and balances all live on the Pi, in its own repo.
 **The hub calls the Pi, live** (`lib/pi.ts`). Everything under *Coffee kiosk*. Only
 this server talks to the Pi, over Tailscale Funnel at `PI_API_URL` with
 `PI_API_TOKEN`; browsers never do. Each call carries the signed-in board member's
-email for the Pi's audit log. Balances stay on the Pi; the only student IDs kept
-here are those on sales waiting to reach it. Hardware tests, restarts, deploys,
+email for the Pi's audit log. Students stay on the Pi: the only student IDs kept
+here are on the open shift's sales and any waiting or refused, and a closed shift
+is deleted once the Pi has it. Hardware tests, restarts, deploys,
 settings and editing the capsule catalogue aren't reachable this way on purpose:
 they're for whoever looks after the Pi, over SSH. The Pi's `services/hub_api.py`
 is the list. With the Pi offline the live pages say so, and *Status* falls back
