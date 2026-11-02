@@ -1,16 +1,79 @@
+import Link from "next/link";
 import { DbDown, Panel, Stat, ago } from "@/components/hub/bits";
+import { requireBoard } from "@/lib/auth";
 import { COMMANDS, kioskAuthed, loadKiosk } from "@/lib/kiosk";
+import { piConfigured, piGet, type PiOverview } from "@/lib/pi";
 import { athensDate, athensTime } from "@/lib/time";
 import { euros } from "@/lib/types";
 import { KioskControls, RefillButton } from "./KioskControls";
+import { LiveMaintenance, LiveRefill } from "./LiveControls";
+import { PiDown } from "./PiDown";
 
 export const metadata = { title: "Coffee kiosk · SGA Hub" };
 
 const MODE = { in_service: ["In service", "ok"], maintenance: ["Maintenance", "warn"], out_of_service: ["Out of service", "bad"] } as const;
 
+/** What the Pi says right now. */
+function Live({ o }: { o: PiOverview }) {
+  const [label, tone] = MODE[o.status.state];
+  const t = o.today.today;
+  const empty = o.columns.filter((c) => c.enabled && c.sku && c.stock <= 0).length;
+  return (
+    <>
+      <div className="stats">
+        <Stat label="Status" value={<span className={"dot-status dot-status--" + tone}>{label}</span>} sub={o.status.reason || "live from the Pi"} />
+        <Stat label="Coffees today" value={t.coffees} sub={`${o.today.last_week.coffees} by now last week`} />
+        <Stat label="Top-ups today" value={euros(t.cash_cents, true)} sub={`${t.topups} top-up${t.topups === 1 ? "" : "s"}, ${t.new_students} new`} href="/kiosk/cash" />
+        <Stat label="Capsules left" value={o.columns.reduce((n, c) => n + Math.max(0, c.stock), 0)} sub={empty ? `${empty} column${empty > 1 ? "s" : ""} empty` : "no empty columns"} href="/kiosk/stock" />
+      </div>
+
+      {o.alerts.length > 0 && (
+        <div className="notice notice--bad"><strong>Open alerts:</strong> {o.alerts.map((a) => a.title).join(" · ")} <Link href="/kiosk/alerts">See them</Link></div>
+      )}
+
+      <Panel title="Columns" action={<Link className="small" href="/kiosk/stock">Manage stock</Link>}>
+        <div className="tubes">
+          {o.columns.map((c) => (
+            <div key={c.column_index} className={"tube" + (!c.enabled ? " tube--off" : "")}>
+              <span className="tube__glass" title={`${c.stock} of ${c.capacity}`}>
+                <i style={{ height: `${Math.max(0, Math.min(1, c.stock / Math.max(1, c.capacity))) * 100}%`, background: c.bg_color || "var(--crimson)" }} />
+              </span>
+              <strong>{c.stock}<span className="muted">/{c.capacity}</span></strong>
+              <span className="tube__name" title={c.name || ""}>{c.name || "empty"}</span>
+              {!c.enabled && <span className="pill pill--bad">off</span>}
+              <LiveRefill column={c.column_index} capacity={c.capacity} stock={c.stock} disabled={!c.sku} />
+            </div>
+          ))}
+        </div>
+      </Panel>
+
+      <div className="cols">
+        <Panel title="To do">
+          {o.todos.length === 0 ? <p className="muted">Nothing needs doing.</p> : (
+            <ul className="list">{o.todos.map((t2) => <li key={t2.text}><span>{t2.text}</span><span className={"pill " + (t2.level === "bad" || t2.level === "urgent" ? "pill--bad" : "pill--warn")}>{t2.level}</span></li>)}</ul>
+          )}
+        </Panel>
+        <Panel title="Control">
+          <LiveMaintenance on={o.status.maintenance.on} />
+          <p className="muted small">Software {o.chips.version.slice(0, 7)}. Hardware tests, restarts, deploys and settings stay on the Pi, over SSH.</p>
+        </Panel>
+      </div>
+    </>
+  );
+}
+
 export default async function Kiosk() {
+  const me = await requireBoard();
+  const live = piConfigured() ? await piGet<PiOverview>("/overview", me.email) : null;
+  if (live?.ok) {
+    return (
+      <main className="hubpage">
+        <header className="hubpage__head"><h1>Coffee kiosk</h1><span className="pill pill--ok">live</span></header>
+        <Live o={live} />
+      </main>
+    );
+  }
   const configured = kioskAuthed("Bearer " + (process.env.KIOSK_TOKEN || ""));
-  const piUrl = process.env.KIOSK_DASHBOARD_URL;
   let body: React.ReactNode;
   try {
     const k = await loadKiosk();
@@ -35,6 +98,10 @@ export default async function Kiosk() {
           <div className="notice notice--bad"><strong>Open alerts on the kiosk:</strong> {r.alerts.map((a) => a.detail || a.code).join(" · ")}</div>
         )}
 
+        {live && !live.ok && (live.kind === "offline"
+          ? <div className="notice notice--warn"><strong>The kiosk isn&apos;t answering live.</strong> This is its last report. Refills here are queued for its next check-in.</div>
+          : <PiDown err={live} />)}
+
         <Panel title="Columns" action={<span className="muted small">Refills are queued and the kiosk applies them on its next check-in.</span>}>
           <div className="tubes">
             {r.columns.map((c) => (
@@ -54,7 +121,6 @@ export default async function Kiosk() {
         <div className="cols">
           <Panel title="Control">
             <KioskControls mode={r.mode} />
-            {piUrl && <p className="muted small">Hardware, servos, logs and student accounts stay on the kiosk&apos;s own dashboard: <a href={piUrl} target="_blank" rel="noreferrer">open it</a>.</p>}
             <h3 className="h3">Recent commands</h3>
             {k.commands.length === 0 ? <p className="muted">None yet.</p> : (
               <ul className="list">
@@ -95,7 +161,7 @@ export default async function Kiosk() {
   }
   return (
     <main className="hubpage">
-      <header className="hubpage__head"><h1>Coffee kiosk</h1>{piUrl && <a className="btn btn--sm" href={piUrl} target="_blank" rel="noreferrer">Kiosk dashboard ↗</a>}</header>
+      <header className="hubpage__head"><h1>Coffee kiosk</h1></header>
       {body}
     </main>
   );

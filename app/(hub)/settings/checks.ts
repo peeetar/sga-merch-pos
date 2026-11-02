@@ -25,7 +25,9 @@ export function setupChecks(): Check[] {
     { key: "NOTION_TOKEN", label: "Notion (meetings)", ok: has("NOTION_TOKEN") && has("NOTION_MEETINGS_DATA_SOURCE"), required: true,
       help: "An internal integration in the SGA workspace (notion.so/my-integrations), connected to the Meetings and Projects databases. NOTION_MEETINGS_DATA_SOURCE is the Meetings data source id; NOTION_PROJECTS_DATA_SOURCE (optional) lets meetings be tagged with projects." },
     { key: "KIOSK_TOKEN", label: "Coffee kiosk link", ok: (process.env.KIOSK_TOKEN || "").length >= 24, required: false,
-      help: "24+ random characters, the same value as HUB_TOKEN on the Pi. Optional KIOSK_DASHBOARD_URL links to the kiosk's own dashboard." },
+      help: "24+ random characters, the same value as HUB_TOKEN on the Pi. The Pi uses it to report in every minute." },
+    { key: "PI_API_URL", label: "Coffee kiosk, live", ok: !!process.env.PI_API_URL && (process.env.PI_API_TOKEN || "").length >= 32, required: false,
+      help: "PI_API_URL is the Pi's public address (Tailscale Funnel, https://<node>.<tailnet>.ts.net). PI_API_TOKEN is 32+ random characters, the same value as HUB_API_TOKEN on the Pi. Steps: deploy/funnel/README.md in sga-coffee-kiosk." },
     { key: "NTFY_TOPIC", label: "ntfy alerts", ok: has("NTFY_TOPIC"), required: true,
       help: "A long, hard-to-guess topic name (anyone who knows it can read it). Optional NTFY_URL for a self-hosted server and NTFY_TOKEN for a protected topic." },
   ];

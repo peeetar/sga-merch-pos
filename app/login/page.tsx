@@ -18,6 +18,7 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
       <div className="card card--narrow">
         <p className="brand brand--big"><span className="brand__mark">SGA</span> Hub</p>
         <LoginForm initialError={error ? ERRORS[error] || null : null} passwordEnabled={!!process.env.HUB_PASSWORD} />
+        <a className="btn btn--block" href="/pos">Selling merch? Open the till</a>
       </div>
     </main>
   );

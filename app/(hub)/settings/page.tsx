@@ -1,12 +1,16 @@
 import { DbDown, Panel } from "@/components/hub/bits";
+import { requireBoard } from "@/lib/auth";
 import { currentTerm } from "@/lib/db";
+import { piConfigured, piGet } from "@/lib/pi";
 import { setupChecks } from "./checks";
 import { TermForm, TestAlert } from "./SettingsForms";
 
 export const metadata = { title: "Settings · SGA Hub" };
 
 export default async function Settings() {
+  const me = await requireBoard();
   const checks = setupChecks();
+  const pi = piConfigured() ? await piGet<{ role: string }>("/me", me.email) : null;
   let term: string | null = null;
   let dbErr: unknown = null;
   try { term = await currentTerm(); } catch (err) { dbErr = err; }
@@ -30,6 +34,13 @@ export default async function Settings() {
           ))}
         </ul>
       </Panel>
+
+      {pi && (
+        <Panel title="Coffee kiosk connection">
+          {pi.ok ? <p><span className="dot-status dot-status--ok">Connected.</span> The hub can reach the Pi and the Pi accepts its token.</p>
+            : <p><span className="dot-status dot-status--bad">Not connected.</span> {pi.message}</p>}
+        </Panel>
+      )}
 
       <Panel title="Alerts (ntfy)">
         {topic ? (

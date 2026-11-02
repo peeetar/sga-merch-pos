@@ -20,7 +20,7 @@ emails.
 | **Settings**: setup checklist, ntfy topic and test alert, term switch | ✅ |
 | **Finance**: one ledger for till sales, kiosk top-ups, spending, receipts and reimbursements | ✅ |
 | **Meetings**: voice memo → Gemini → notes and transcript in Notion | ✅ |
-| **Coffee kiosk**: the Pi reports in every minute; status, columns, top-ups, refill and maintenance commands | ✅ hub side; Pi side in `sga-coffee-kiosk` |
+| **Coffee kiosk**: live status, students, top-ups, stock, sign-ups, alerts, cash, sales and system from the Pi | ✅ with `sga-coffee-kiosk` |
 | **Documents**: photos and files in a private Vercel Blob store | ✅ |
 | Event supplies: snacks, drinks, BBQ stock and a how-much-to-buy planner | on hold, waiting for past receipts |
 | Year-end report (PDF) | on hold, contents to be decided |
@@ -120,7 +120,23 @@ The board agreed that's fine for meeting audio.
 
 ## Coffee kiosk link
 
-The Pi calls out; nothing calls in. Every minute it POSTs to
+There are two lines, and both are needed.
+
+**The hub calls the Pi, live** (`lib/pi.ts`). Everything under *Coffee kiosk*:
+balances, top-ups, PIN resets, stock, sign-ups, alerts, cash, sales, system. Only
+this server talks to the Pi, over Tailscale Funnel at `PI_API_URL` with
+`PI_API_TOKEN`; browsers never do. Each call carries the signed-in board member's
+email for the Pi's audit log. Students stay on the Pi: nothing from these calls is
+stored here. Hardware tests, restarts, deploys, settings and fixing a mistyped ID
+aren't reachable this way on purpose: they stay on the Pi, over SSH. The Pi's
+`services/hub_api.py` is the list. With the Pi offline these pages say so, and a
+top-up can't be taken; *Status* falls back to the last report below.
+
+A top-up carries a request id. If the Pi doesn't answer, pressing the same amount
+again is safe: it counts once.
+
+**The Pi calls the hub, every minute.** This keeps *Status* and Finance working
+when the Pi can't be reached. Every minute it POSTs to
 `/api/kiosk/report` with `Authorization: Bearer <KIOSK_TOKEN>`:
 
 ```json
@@ -165,7 +181,8 @@ ntfy topic.
    `NOTION_MEETINGS_DATA_SOURCE` (the Meetings data source id) and optionally
    `NOTION_PROJECTS_DATA_SOURCE`.
 7. **Kiosk**: `KIOSK_TOKEN` (24+ random characters, the same as `HUB_TOKEN`
-   on the Pi) and optionally `KIOSK_DASHBOARD_URL`.
+   on the Pi), and `PI_API_URL` and `PI_API_TOKEN` for
+   the live pages (`deploy/funnel/README.md` in `sga-coffee-kiosk`).
 8. **Resend**: create the account with the SGA mailbox, verify a sending
    domain, and set `RESEND_API_KEY` and `HUB_EMAIL_FROM`. Without a verified
    domain, Resend only delivers to the account's own address. Until then, the

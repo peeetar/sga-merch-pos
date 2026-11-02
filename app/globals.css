@@ -593,3 +593,12 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .
   .meeting > :nth-child(3) { grid-column: 1; grid-row: auto; }
 }
 .btn--sm.btn--out { flex: none; }
+
+/* --- coffee kiosk tabs ----------------------------------------------------- */
+.subnav { display: flex; gap: 4px; overflow-x: auto; padding: 16px 28px 0; max-width: 1180px; margin: 0 auto; }
+.subnav__item { padding: 8px 14px; border-radius: 999px; font-size: 15px; font-weight: 700; color: var(--muted); text-decoration: none; white-space: nowrap; }
+.subnav__item:hover { background: var(--cream-2); }
+.subnav__item.is-on { background: var(--crimson); color: var(--cream); }
+.subnav + .hubpage { padding-top: 14px; }
+.field--tiny { width: 72px; flex: none; }
+.tbl a, .panel__head a { color: var(--crimson); font-weight: 700; }
